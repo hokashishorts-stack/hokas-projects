@@ -1,0 +1,2726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>MotoOS Simulator</title>
+<style>
+/* ============================================
+   CSS RESET & ROOT VARIABLES
+   ============================================ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0a0a0f;
+  --bg-secondary:#12121a;
+  --bg-tertiary:#1a1a2e;
+  --bg-card:#16162a;
+  --bg-glass:rgba(16,16,40,0.85);
+  --bg-glass-light:rgba(255,255,255,0.06);
+  --text-primary:#e8e8f0;
+  --text-secondary:#8888aa;
+  --text-muted:#555577;
+  --accent:#00d4ff;
+  --accent-glow:rgba(0,212,255,0.3);
+  --accent2:#7c4dff;
+  --accent2-glow:rgba(124,77,255,0.3);
+  --accent3:#00e676;
+  --danger:#ff5252;
+  --warning:#ffab40;
+  --success:#69f0ae;
+  --border:rgba(255,255,255,0.06);
+  --shadow:0 8px 32px rgba(0,0,0,0.4);
+  --radius:16px;
+  --radius-sm:10px;
+  --radius-lg:24px;
+  --radius-xl:32px;
+  --transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
+  --transition-fast:all 0.15s cubic-bezier(0.4,0,0.2,1);
+  --transition-slow:all 0.5s cubic-bezier(0.4,0,0.2,1);
+  --font:'Segoe UI',system-ui,-apple-system,sans-serif;
+  --phone-width:min(100vw, 420px);
+  --phone-height:min(100vh, 900px);
+  --statusbar-h:44px;
+  --navbar-h:48px;
+  --dock-h:88px;
+}
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  font-family:var(--font);
+  background:#000;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+/* Light mode */
+.light-mode{
+  --bg-primary:#f0f2f5;
+  --bg-secondary:#ffffff;
+  --bg-tertiary:#e8eaed;
+  --bg-card:#ffffff;
+  --bg-glass:rgba(255,255,255,0.9);
+  --bg-glass-light:rgba(0,0,0,0.04);
+  --text-primary:#1a1a2e;
+  --text-secondary:#666688;
+  --text-muted:#999999;
+  --border:rgba(0,0,0,0.08);
+  --shadow:0 8px 32px rgba(0,0,0,0.12);
+  --bg-card:#f8f8ff;
+}
+
+/* ============================================
+   PHONE CONTAINER
+   ============================================ */
+#phone{
+  position:relative;
+  width:var(--phone-width);height:var(--phone-height);
+  margin:0 auto;
+  background:var(--bg-primary);
+  overflow:hidden;
+  user-select:none;
+  -webkit-user-select:none;
+}
+
+/* ============================================
+   STATUS BAR
+   ============================================ */
+#statusbar{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  width:var(--phone-width);height:var(--statusbar-h);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;
+  background:transparent;
+  z-index:9999;
+  color:var(--text-primary);
+  font-size:12px;font-weight:600;
+  transition:var(--transition);
+}
+#statusbar.opaque{background:var(--bg-glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.sb-left,.sb-right{display:flex;align-items:center;gap:6px}
+.sb-center{font-size:12px;font-weight:700;letter-spacing:0.5px}
+.sb-icon{width:16px;height:16px;opacity:0.9}
+.sb-battery{
+  display:flex;align-items:center;gap:3px;
+  font-size:11px;font-weight:600;
+}
+.battery-icon{
+  width:22px;height:11px;
+  border:1.5px solid currentColor;
+  border-radius:2px;
+  position:relative;
+  display:flex;align-items:center;padding:1px;
+}
+.battery-icon::after{
+  content:'';position:absolute;right:-4px;top:50%;transform:translateY(-50%);
+  width:2px;height:5px;background:currentColor;border-radius:0 1px 1px 0;
+}
+.battery-fill{
+  height:100%;background:var(--accent3);border-radius:1px;
+  transition:width 1s linear;
+}
+.battery-fill.low{background:var(--danger)}
+.battery-fill.medium{background:var(--warning)}
+
+/* ============================================
+   LOCK SCREEN
+   ============================================ */
+#lockscreen{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  width:var(--phone-width);height:var(--phone-height);
+  background:linear-gradient(135deg,#0a0015 0%,#1a0030 30%,#0d1b2a 60%,#0a0a1a 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:10000;
+  transition:var(--transition-slow);
+}
+#lockscreen.unlocked{
+  transform:translateX(-50%) translateY(-100%);
+  opacity:0;
+  pointer-events:none;
+}
+.lock-time{
+  font-size:72px;font-weight:200;color:#fff;
+  letter-spacing:-2px;
+  text-shadow:0 0 40px rgba(0,212,255,0.3);
+}
+.lock-date{
+  font-size:16px;color:rgba(255,255,255,0.6);
+  margin-top:4px;font-weight:400;
+}
+.lock-hint{
+  position:absolute;bottom:80px;
+  font-size:13px;color:rgba(255,255,255,0.4);
+  animation:pulse-hint 2s ease-in-out infinite;
+}
+.lock-swipe-area{
+  position:absolute;bottom:0;left:0;right:0;height:200px;
+  cursor:pointer;
+}
+@keyframes pulse-hint{
+  0%,100%{opacity:0.4;transform:translateY(0)}
+  50%{opacity:0.8;transform:translateY(-8px)}
+}
+
+/* ============================================
+   WALLPAPER
+   ============================================ */
+#wallpaper{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  width:var(--phone-width);height:var(--phone-height);
+  z-index:0;
+  background-size:cover;background-position:center;
+  transition:var(--transition-slow);
+}
+.wp-default{
+  background:linear-gradient(160deg,#0a0020 0%,#0d1b3e 25%,#162447 45%,#1f4068 65%,#1b1b2f 100%);
+}
+.wp-gradient1{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e)}
+.wp-gradient2{background:linear-gradient(135deg,#000428,#004e92)}
+.wp-gradient3{background:linear-gradient(135deg,#1a002e,#4a0080,#7c21a6)}
+.wp-gradient4{background:linear-gradient(135deg,#001510,#00352a,#004d40)}
+.wp-gradient5{background:linear-gradient(135deg,#1a0000,#4a0000,#800000)}
+.wp-gradient6{background:linear-gradient(135deg,#f5f7fa,#c3cfe2)}
+
+/* ============================================
+   HOME SCREEN
+   ============================================ */
+#homescreen{
+  position:fixed;top:var(--statusbar-h);left:50%;transform:translateX(-50%);
+  width:var(--phone-width);
+  height:calc(var(--phone-height) - var(--statusbar-h) - var(--navbar-h));
+  z-index:10;
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+  padding:20px 16px;
+  padding-bottom:calc(var(--dock-h) + 20px);
+}
+#homescreen::-webkit-scrollbar{display:none}
+
+.home-widget{
+  background:var(--bg-glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:20px;margin-bottom:16px;
+  transition:var(--transition);
+}
+.home-widget:active{transform:scale(0.97)}
+
+.widget-time{font-size:52px;font-weight:200;color:var(--text-primary);letter-spacing:-1px}
+.widget-date{font-size:14px;color:var(--text-secondary);margin-top:2px;font-weight:500}
+.widget-weather{
+  display:flex;align-items:center;gap:8px;
+  margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--border);
+  font-size:13px;color:var(--text-secondary);
+}
+.weather-temp{font-size:20px;font-weight:600;color:var(--text-primary)}
+
+/* Search Widget */
+.search-widget{
+  display:flex;align-items:center;gap:12px;
+  background:var(--bg-glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:12px 20px;margin-bottom:16px;
+  cursor:pointer;
+  transition:var(--transition);
+}
+.search-widget:active{transform:scale(0.97);border-color:var(--accent)}
+.search-widget svg{opacity:0.5;flex-shrink:0}
+.search-widget span{color:var(--text-muted);font-size:14px}
+
+/* App Grid */
+.app-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:16px 8px;
+  padding:8px 0;
+}
+.app-icon{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  cursor:pointer;
+  transition:var(--transition-fast);
+  -webkit-tap-highlight-color:transparent;
+}
+.app-icon:active{transform:scale(0.85)}
+.app-icon-img{
+  width:56px;height:56px;
+  border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;
+  position:relative;
+  transition:var(--transition);
+  box-shadow:0 4px 15px rgba(0,0,0,0.3);
+}
+.app-icon-img::after{
+  content:'';position:absolute;inset:0;
+  border-radius:16px;
+  background:linear-gradient(135deg,rgba(255,255,255,0.2) 0%,transparent 50%);
+  pointer-events:none;
+}
+.app-icon-label{
+  font-size:11px;color:var(--text-primary);
+  text-align:center;font-weight:500;
+  text-shadow:0 1px 3px rgba(0,0,0,0.5);
+  max-width:70px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.app-badge{
+  position:absolute;top:-4px;right:-4px;
+  width:18px;height:18px;border-radius:50%;
+  background:var(--danger);color:#fff;
+  font-size:10px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(255,82,82,0.5);
+}
+
+/* ============================================
+   DOCK
+   ============================================ */
+#dock{
+  position:fixed;
+  bottom:var(--navbar-h);left:50%;transform:translateX(-50%);
+  width:calc(var(--phone-width) - 32px);
+  height:var(--dock-h);
+  background:var(--bg-glass);
+  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  display:flex;align-items:center;justify-content:space-around;
+  padding:0 12px;
+  z-index:100;
+  transition:var(--transition);
+}
+
+/* ============================================
+   NAVIGATION BAR
+   ============================================ */
+#navbar{
+  position:fixed;
+  bottom:0;left:50%;transform:translateX(-50%);
+  width:var(--phone-width);height:var(--navbar-h);
+  display:flex;align-items:center;justify-content:center;
+  gap:40px;
+  z-index:9999;
+  background:rgba(0,0,0,0.3);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+.nav-btn{
+  width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;opacity:0.7;
+  transition:var(--transition-fast);
+  border-radius:50%;
+}
+.nav-btn:active{opacity:1;background:rgba(255,255,255,0.1);transform:scale(0.85)}
+.nav-pill{
+  width:120px;height:4px;
+  background:rgba(255,255,255,0.5);
+  border-radius:4px;
+  cursor:pointer;
+  transition:var(--transition);
+}
+.nav-pill:active{width:100px;background:rgba(255,255,255,0.8)}
+
+/* ============================================
+   APP DRAWER
+   ============================================ */
+#appdrawer{
+  position:fixed;top:0;left:50%;
+  transform:translateX(-50%) translateY(100%);
+  width:var(--phone-width);height:var(--phone-height);
+  background:var(--bg-glass);
+  backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);
+  z-index:500;
+  transition:transform 0.4s cubic-bezier(0.4,0,0.2,1);
+  padding:var(--statusbar-h) 0 var(--navbar-h) 0;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+#appdrawer.open{transform:translateX(-50%) translateY(0)}
+.drawer-handle{
+  width:40px;height:4px;
+  background:rgba(255,255,255,0.3);
+  border-radius:4px;margin:12px auto;flex-shrink:0;
+}
+.drawer-search{
+  margin:8px 20px 16px;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:12px 20px;
+  display:flex;align-items:center;gap:12px;
+  flex-shrink:0;
+}
+.drawer-search input{
+  background:none;border:none;outline:none;
+  color:var(--text-primary);font-size:14px;
+  width:100%;font-family:var(--font);
+}
+.drawer-search input::placeholder{color:var(--text-muted)}
+.drawer-grid{
+  flex:1;overflow-y:auto;
+  scrollbar-width:none;
+  padding:0 16px 20px;
+}
+.drawer-grid::-webkit-scrollbar{display:none}
+.drawer-apps{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:20px 8px;
+}
+
+/* ============================================
+   NOTIFICATION PANEL
+   ============================================ */
+#notif-panel{
+  position:fixed;top:0;left:50%;
+  transform:translateX(-50%) translateY(-100%);
+  width:var(--phone-width);height:var(--phone-height);
+  background:var(--bg-glass);
+  backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);
+  z-index:8000;
+  transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  padding:var(--statusbar-h) 16px 20px;
+  overflow-y:auto;scrollbar-width:none;
+}
+#notif-panel::-webkit-scrollbar{display:none}
+#notif-panel.open{transform:translateX(-50%) translateY(0)}
+
+.quick-toggles{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:10px;margin-bottom:20px;margin-top:12px;
+}
+.qt-btn{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 4px;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  cursor:pointer;
+  transition:var(--transition-fast);
+  font-size:10px;color:var(--text-secondary);font-weight:600;
+}
+.qt-btn.active{
+  background:rgba(0,212,255,0.15);
+  border-color:var(--accent);
+  color:var(--accent);
+}
+.qt-btn:active{transform:scale(0.9)}
+.qt-icon{font-size:22px}
+
+.brightness-slider{
+  width:100%;margin:16px 0;
+  display:flex;align-items:center;gap:12px;
+  padding:0 4px;
+}
+.brightness-slider input[type=range]{
+  flex:1;-webkit-appearance:none;appearance:none;
+  height:4px;background:var(--bg-glass-light);
+  border-radius:4px;outline:none;
+}
+.brightness-slider input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;
+  border-radius:50%;background:var(--accent);
+  cursor:pointer;box-shadow:0 0 10px var(--accent-glow);
+}
+
+.notif-section-title{
+  font-size:12px;font-weight:700;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:1px;
+  margin:20px 0 10px;
+}
+.notif-card{
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:8px;
+  display:flex;gap:12px;align-items:flex-start;
+  transition:var(--transition-fast);
+}
+.notif-card:active{transform:scale(0.98)}
+.notif-icon{
+  width:36px;height:36px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.notif-content{flex:1}
+.notif-app{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.notif-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-top:2px}
+.notif-text{font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4}
+.notif-time{font-size:10px;color:var(--text-muted);flex-shrink:0;margin-top:2px}
+
+/* ============================================
+   APP CONTAINER & WINDOWS
+   ============================================ */
+#app-container{
+  position:fixed;top:0;left:50%;
+  transform:translateX(-50%);
+  width:var(--phone-width);height:var(--phone-height);
+  z-index:200;
+  pointer-events:none;
+}
+.app-window{
+  position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  background:var(--bg-primary);
+  transform:scale(0.95) translateY(20px);
+  opacity:0;
+  pointer-events:none;
+  transition:all 0.35s cubic-bezier(0.4,0,0.2,1);
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.app-window.active{
+  transform:scale(1) translateY(0);
+  opacity:1;
+  pointer-events:all;
+}
+.app-header{
+  height:56px;min-height:56px;
+  display:flex;align-items:center;gap:12px;
+  padding:0 16px;padding-top:var(--statusbar-h);
+  min-height:calc(56px + var(--statusbar-h));
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.app-back{
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border-radius:50%;
+  transition:var(--transition-fast);
+}
+.app-back:active{background:var(--bg-glass-light)}
+.app-title{font-size:18px;font-weight:600;color:var(--text-primary);flex:1}
+.app-body{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+  padding-bottom:var(--navbar-h);
+}
+.app-body::-webkit-scrollbar{display:none}
+
+/* ============================================
+   RECENT APPS VIEW
+   ============================================ */
+#recents{
+  position:fixed;top:0;left:50%;
+  transform:translateX(-50%);
+  width:var(--phone-width);height:var(--phone-height);
+  background:rgba(0,0,0,0.8);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  z-index:400;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  padding:calc(var(--statusbar-h) + 20px) 30px 80px;
+  overflow-y:auto;scrollbar-width:none;
+  gap:16px;
+}
+#recents::-webkit-scrollbar{display:none}
+#recents.open{display:flex}
+.recent-card{
+  width:100%;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+  cursor:pointer;
+  transition:var(--transition);
+  flex-shrink:0;
+}
+.recent-card:active{transform:scale(0.95)}
+.recent-card-header{
+  padding:10px 14px;
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg-glass-light);
+  font-size:13px;font-weight:600;color:var(--text-primary);
+}
+.recent-card-header .rc-icon{font-size:18px}
+.recent-card-body{height:150px;background:var(--bg-tertiary);padding:12px;font-size:12px;color:var(--text-muted)}
+.recent-close{
+  margin-left:auto;width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;cursor:pointer;
+  transition:var(--transition-fast);
+}
+.recent-close:active{background:rgba(255,82,82,0.2)}
+.clear-all-btn{
+  margin-top:12px;
+  padding:10px 24px;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  color:var(--text-secondary);
+  font-size:13px;font-weight:600;
+  cursor:pointer;
+  transition:var(--transition-fast);
+}
+.clear-all-btn:active{background:var(--accent);color:#000}
+
+/* ============================================
+   SETTINGS APP
+   ============================================ */
+.settings-list{padding:8px 0}
+.settings-group{
+  margin:8px 16px;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.settings-group-title{
+  padding:16px 16px 8px;
+  font-size:12px;font-weight:700;color:var(--accent);
+  text-transform:uppercase;letter-spacing:1px;
+}
+.settings-item{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;
+  cursor:pointer;
+  transition:var(--transition-fast);
+  border-bottom:1px solid var(--border);
+}
+.settings-item:last-child{border-bottom:none}
+.settings-item:active{background:var(--bg-glass-light)}
+.si-icon{
+  width:36px;height:36px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;flex-shrink:0;
+}
+.si-text{flex:1}
+.si-title{font-size:14px;font-weight:500;color:var(--text-primary)}
+.si-sub{font-size:12px;color:var(--text-secondary);margin-top:2px}
+/* Toggle Switch */
+.toggle{
+  width:46px;height:26px;
+  background:var(--bg-tertiary);
+  border-radius:13px;cursor:pointer;
+  position:relative;
+  transition:var(--transition);
+  flex-shrink:0;
+  border:2px solid var(--border);
+}
+.toggle.on{background:var(--accent);border-color:var(--accent)}
+.toggle::after{
+  content:'';position:absolute;
+  top:2px;left:2px;
+  width:18px;height:18px;border-radius:50%;
+  background:#fff;
+  transition:var(--transition);
+  box-shadow:0 2px 4px rgba(0,0,0,0.2);
+}
+.toggle.on::after{left:calc(100% - 20px)}
+
+/* Wallpaper Picker */
+.wp-picker{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:10px;padding:16px;
+}
+.wp-option{
+  height:100px;border-radius:var(--radius);
+  cursor:pointer;transition:var(--transition);
+  border:3px solid transparent;
+}
+.wp-option:active{transform:scale(0.93)}
+.wp-option.selected{border-color:var(--accent);box-shadow:0 0 15px var(--accent-glow)}
+.device-info{padding:20px;text-align:center}
+.device-info h3{font-size:20px;color:var(--text-primary);margin-bottom:4px}
+.device-info p{font-size:12px;color:var(--text-secondary);margin:3px 0}
+.device-logo{font-size:40px;margin-bottom:12px}
+
+/* ============================================
+   CALCULATOR APP
+   ============================================ */
+.calc-display{
+  padding:24px 20px;padding-top:16px;
+  text-align:right;
+  background:var(--bg-secondary);
+  min-height:140px;
+  display:flex;flex-direction:column;justify-content:flex-end;
+}
+.calc-expression{font-size:16px;color:var(--text-muted);margin-bottom:8px;min-height:22px;word-break:break-all}
+.calc-result{font-size:48px;font-weight:300;color:var(--text-primary);word-break:break-all}
+.calc-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:1px;background:var(--border);flex:1;
+}
+.calc-btn{
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+  background:var(--bg-secondary);
+  color:var(--text-primary);
+  cursor:pointer;
+  transition:var(--transition-fast);
+  padding:18px 0;
+  font-weight:400;
+}
+.calc-btn:active{background:var(--bg-tertiary);transform:scale(0.95)}
+.calc-btn.op{color:var(--accent);font-weight:600}
+.calc-btn.fn{color:var(--accent2);font-size:16px;font-weight:600}
+.calc-btn.eq{background:var(--accent);color:#000;font-weight:700}
+.calc-btn.eq:active{background:#00b8d9}
+
+/* ============================================
+   CAMERA APP
+   ============================================ */
+.camera-viewfinder{
+  flex:1;background:#000;
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+.camera-viewfinder video{width:100%;height:100%;object-fit:cover}
+.camera-controls{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:20px;padding-bottom:calc(var(--navbar-h) + 20px);
+  display:flex;align-items:center;justify-content:center;gap:30px;
+  background:linear-gradient(transparent,rgba(0,0,0,0.6));
+}
+.capture-btn{
+  width:70px;height:70px;border-radius:50%;
+  border:4px solid #fff;
+  background:transparent;
+  cursor:pointer;
+  transition:var(--transition-fast);
+  position:relative;
+}
+.capture-btn::after{
+  content:'';position:absolute;
+  inset:4px;border-radius:50%;
+  background:#fff;
+  transition:var(--transition-fast);
+}
+.capture-btn:active::after{background:var(--accent);transform:scale(0.8)}
+.cam-btn{
+  width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,0.15);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;
+  transition:var(--transition-fast);
+  color:#fff;
+}
+.cam-btn:active{background:rgba(255,255,255,0.3)}
+.camera-flash{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  width:var(--phone-width);height:var(--phone-height);
+  background:#fff;opacity:0;
+  pointer-events:none;z-index:9998;
+  transition:opacity 0.1s;
+}
+.camera-flash.flash{opacity:0.8}
+.camera-preview-thumb{
+  position:absolute;bottom:calc(var(--navbar-h) + 24px);left:20px;
+  width:50px;height:50px;border-radius:10px;
+  border:2px solid #fff;
+  background-size:cover;background-position:center;
+  cursor:pointer;
+}
+
+/* ============================================
+   FILE MANAGER
+   ============================================ */
+.fm-toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:12px 16px;
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border);
+}
+.fm-add-btn{
+  padding:8px 16px;
+  background:var(--accent);
+  color:#000;font-weight:600;font-size:13px;
+  border-radius:var(--radius-xl);
+  cursor:pointer;transition:var(--transition-fast);
+  display:flex;align-items:center;gap:6px;
+  border:none;font-family:var(--font);
+}
+.fm-add-btn:active{transform:scale(0.95);background:#00b8d9}
+.fm-path{
+  flex:1;font-size:12px;color:var(--text-muted);
+  text-align:right;
+}
+.fm-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:12px;padding:16px;
+}
+.fm-item{
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;cursor:pointer;
+  transition:var(--transition-fast);
+}
+.fm-item:active{transform:scale(0.95)}
+.fm-thumb{
+  width:100%;aspect-ratio:1;
+  background-size:cover;background-position:center;
+  background-color:var(--bg-tertiary);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;
+}
+.fm-name{
+  padding:8px;font-size:11px;
+  color:var(--text-primary);
+  text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fm-empty{
+  text-align:center;padding:60px 20px;
+  color:var(--text-muted);
+}
+.fm-empty-icon{font-size:48px;margin-bottom:12px}
+/* File Preview Modal */
+.file-preview-modal{
+  position:fixed;top:0;left:50%;transform:translateX(-50%);
+  width:var(--phone-width);height:var(--phone-height);
+  background:rgba(0,0,0,0.95);
+  z-index:9500;display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+}
+.file-preview-modal.open{display:flex}
+.file-preview-modal img{max-width:90%;max-height:70%;object-fit:contain;border-radius:var(--radius)}
+.fpm-close{
+  position:absolute;top:calc(var(--statusbar-h) + 12px);right:16px;
+  width:36px;height:36px;border-radius:50%;
+  background:rgba(255,255,255,0.1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;color:#fff;cursor:pointer;
+}
+.fpm-actions{
+  display:flex;gap:12px;margin-top:20px;
+}
+.fpm-btn{
+  padding:10px 20px;border-radius:var(--radius-xl);
+  font-size:13px;font-weight:600;cursor:pointer;
+  transition:var(--transition-fast);
+  border:none;font-family:var(--font);
+}
+.fpm-btn.delete{background:var(--danger);color:#fff}
+.fpm-btn.delete:active{opacity:0.7}
+
+/* ============================================
+   BROWSER APP
+   ============================================ */
+.browser-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border);
+}
+.browser-url{
+  flex:1;padding:10px 16px;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  color:var(--text-primary);
+  font-size:13px;outline:none;
+  font-family:var(--font);
+  transition:var(--transition);
+}
+.browser-url:focus{border-color:var(--accent)}
+.browser-go{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--accent);color:#000;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:16px;font-weight:700;
+  transition:var(--transition-fast);
+  border:none;flex-shrink:0;
+}
+.browser-go:active{transform:scale(0.9)}
+.browser-frame{flex:1;border:none;width:100%;background:#fff}
+
+/* ============================================
+   YOUTUBE APP
+   ============================================ */
+.yt-header{
+  padding:14px 16px;
+  display:flex;align-items:center;gap:12px;
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border);
+}
+.yt-logo{font-size:22px;font-weight:800;color:var(--danger)}
+.yt-logo span{color:var(--text-primary)}
+.yt-feed{padding:8px}
+.yt-card{
+  margin-bottom:16px;
+  cursor:pointer;transition:var(--transition-fast);
+  border-radius:var(--radius);overflow:hidden;
+}
+.yt-card:active{transform:scale(0.98)}
+.yt-thumb{
+  width:100%;aspect-ratio:16/9;
+  background:var(--bg-tertiary);
+  position:relative;overflow:hidden;
+  border-radius:var(--radius);
+}
+.yt-thumb iframe{width:100%;height:100%;border:none;border-radius:var(--radius)}
+.yt-thumb img{width:100%;height:100%;object-fit:cover}
+.yt-duration{
+  position:absolute;bottom:8px;right:8px;
+  padding:2px 6px;background:rgba(0,0,0,0.8);
+  color:#fff;font-size:11px;font-weight:600;
+  border-radius:4px;
+}
+.yt-info{padding:10px 4px;display:flex;gap:10px}
+.yt-avatar{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--bg-tertiary);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;
+}
+.yt-meta{flex:1}
+.yt-title{font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.4}
+.yt-channel{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* ============================================
+   INSTAGRAM APP
+   ============================================ */
+.ig-header{
+  padding:12px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border);
+}
+.ig-logo{font-size:20px;font-weight:800;font-style:italic;color:var(--text-primary)}
+.ig-icons{display:flex;gap:16px;font-size:20px;cursor:pointer}
+.ig-stories{
+  display:flex;gap:12px;
+  padding:12px 16px;
+  overflow-x:auto;scrollbar-width:none;
+  border-bottom:1px solid var(--border);
+}
+.ig-stories::-webkit-scrollbar{display:none}
+.ig-story{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  flex-shrink:0;cursor:pointer;
+}
+.ig-story-ring{
+  width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+  padding:3px;
+}
+.ig-story-img{
+  width:100%;height:100%;border-radius:50%;
+  background:var(--bg-tertiary);
+  border:3px solid var(--bg-primary);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+}
+.ig-story-name{font-size:10px;color:var(--text-secondary);max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.ig-post{border-bottom:1px solid var(--border);margin-bottom:4px}
+.ig-post-header{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;
+}
+.ig-post-avatar{
+  width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(45deg,#f09433,#dc2743);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.ig-post-user{font-size:13px;font-weight:700;color:var(--text-primary);flex:1}
+.ig-post-image{
+  width:100%;aspect-ratio:1;
+  background:var(--bg-tertiary);
+  display:flex;align-items:center;justify-content:center;
+}
+.ig-post-image img{width:100%;height:100%;object-fit:cover}
+.ig-post-actions{
+  display:flex;align-items:center;gap:16px;
+  padding:10px 14px;font-size:22px;
+}
+.ig-action{cursor:pointer;transition:var(--transition-fast);display:flex;align-items:center}
+.ig-action:active{transform:scale(1.2)}
+.ig-action.liked{color:var(--danger)}
+.ig-likes{padding:0 14px;font-size:13px;font-weight:700;color:var(--text-primary)}
+.ig-caption{padding:4px 14px 12px;font-size:13px;color:var(--text-primary);line-height:1.4}
+.ig-caption b{font-weight:700}
+
+/* Like animation */
+.heart-burst{
+  position:absolute;font-size:80px;
+  color:var(--danger);
+  opacity:0;transform:scale(0);
+  animation:heartBurst 0.8s ease-out forwards;
+  pointer-events:none;z-index:100;
+}
+@keyframes heartBurst{
+  0%{opacity:1;transform:scale(0)}
+  50%{opacity:1;transform:scale(1.2)}
+  100%{opacity:0;transform:scale(1.4)}
+}
+
+/* ============================================
+   NOTES APP
+   ============================================ */
+.notes-list{padding:12px}
+.note-card{
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:10px;
+  cursor:pointer;transition:var(--transition-fast);
+}
+.note-card:active{transform:scale(0.98)}
+.note-card-title{font-size:14px;font-weight:600;color:var(--text-primary)}
+.note-card-preview{font-size:12px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-card-date{font-size:10px;color:var(--text-muted);margin-top:6px}
+.note-fab{
+  position:absolute;bottom:calc(var(--navbar-h) + 20px);right:20px;
+  width:56px;height:56px;border-radius:50%;
+  background:var(--accent);color:#000;
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;cursor:pointer;
+  box-shadow:0 4px 20px var(--accent-glow);
+  transition:var(--transition-fast);
+  border:none;
+}
+.note-fab:active{transform:scale(0.9)}
+.note-editor{
+  flex:1;padding:16px;
+}
+.note-editor textarea{
+  width:100%;height:100%;border:none;
+  background:transparent;color:var(--text-primary);
+  font-size:15px;line-height:1.6;
+  resize:none;outline:none;
+  font-family:var(--font);
+}
+.note-title-input{
+  width:100%;border:none;
+  background:transparent;color:var(--text-primary);
+  font-size:20px;font-weight:600;
+  padding:16px;outline:none;
+  border-bottom:1px solid var(--border);
+  font-family:var(--font);
+}
+
+/* ============================================
+   WEATHER APP
+   ============================================ */
+.weather-main{
+  text-align:center;padding:40px 20px;
+  background:linear-gradient(180deg,transparent 0%,rgba(0,212,255,0.05) 100%);
+}
+.weather-city{font-size:22px;font-weight:300;color:var(--text-primary)}
+.weather-icon{font-size:80px;margin:20px 0}
+.weather-temp-big{font-size:72px;font-weight:200;color:var(--text-primary)}
+.weather-desc{font-size:16px;color:var(--text-secondary);margin-top:4px}
+.weather-details{
+  display:flex;justify-content:space-around;
+  padding:20px;margin-top:20px;
+  border-top:1px solid var(--border);
+}
+.weather-detail{text-align:center}
+.weather-detail-val{font-size:18px;font-weight:600;color:var(--text-primary)}
+.weather-detail-label{font-size:11px;color:var(--text-muted);margin-top:2px}
+.weather-hourly{
+  display:flex;gap:12px;
+  padding:16px;overflow-x:auto;scrollbar-width:none;
+}
+.weather-hourly::-webkit-scrollbar{display:none}
+.weather-hour{
+  text-align:center;flex-shrink:0;
+  padding:12px;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  min-width:70px;
+}
+.wh-time{font-size:11px;color:var(--text-muted)}
+.wh-icon{font-size:24px;margin:6px 0}
+.wh-temp{font-size:14px;font-weight:600;color:var(--text-primary)}
+
+/* ============================================
+   CLOCK APP
+   ============================================ */
+.clock-display{
+  text-align:center;padding:40px 20px;
+}
+.clock-analog{
+  width:200px;height:200px;
+  border-radius:50%;
+  border:3px solid var(--border);
+  margin:0 auto 30px;
+  position:relative;
+  background:var(--bg-glass-light);
+}
+.clock-hand{
+  position:absolute;bottom:50%;left:50%;
+  transform-origin:bottom center;
+  border-radius:4px;
+}
+.clock-hand.hour{
+  width:4px;height:55px;
+  background:var(--text-primary);
+  margin-left:-2px;
+}
+.clock-hand.minute{
+  width:3px;height:75px;
+  background:var(--accent);
+  margin-left:-1.5px;
+}
+.clock-hand.second{
+  width:1.5px;height:80px;
+  background:var(--danger);
+  margin-left:-0.75px;
+}
+.clock-center-dot{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent);
+}
+.clock-digital{
+  font-size:48px;font-weight:200;color:var(--text-primary);
+}
+.clock-digital-secs{font-size:24px;color:var(--text-muted)}
+.clock-tabs{
+  display:flex;
+  border-bottom:1px solid var(--border);
+  background:var(--bg-secondary);
+}
+.clock-tab{
+  flex:1;padding:14px;text-align:center;
+  font-size:13px;font-weight:600;
+  color:var(--text-muted);cursor:pointer;
+  transition:var(--transition-fast);
+  border-bottom:2px solid transparent;
+}
+.clock-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ============================================
+   PHONE/DIALER APP
+   ============================================ */
+.dialer-display{
+  text-align:center;padding:40px 20px 20px;
+  min-height:100px;
+}
+.dialer-number{
+  font-size:32px;font-weight:300;color:var(--text-primary);
+  letter-spacing:2px;min-height:42px;
+  word-break:break-all;
+}
+.dialer-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:12px;padding:12px 40px;
+}
+.dialer-btn{
+  width:64px;height:64px;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--bg-glass-light);
+  border:1px solid var(--border);
+  cursor:pointer;transition:var(--transition-fast);
+  margin:0 auto;
+}
+.dialer-btn:active{background:var(--accent);transform:scale(0.9)}
+.dialer-btn:active .db-num{color:#000}
+.db-num{font-size:24px;font-weight:400;color:var(--text-primary);line-height:1}
+.db-letters{font-size:9px;color:var(--text-muted);letter-spacing:2px;margin-top:1px}
+.dialer-call{
+  width:64px;height:64px;border-radius:50%;
+  background:var(--success);
+  display:flex;align-items:center;justify-content:center;
+  margin:16px auto;cursor:pointer;
+  font-size:24px;
+  transition:var(--transition-fast);
+  box-shadow:0 4px 20px rgba(105,240,174,0.3);
+}
+.dialer-call:active{transform:scale(0.9)}
+.dialer-actions{
+  display:flex;justify-content:center;gap:40px;
+  padding:8px;
+}
+.dialer-action{
+  width:44px;height:44px;border-radius:50%;
+  background:var(--bg-glass-light);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:18px;
+  transition:var(--transition-fast);
+  color:var(--text-secondary);
+}
+.dialer-action:active{background:var(--bg-tertiary)}
+
+/* ============================================
+   MUSIC APP
+   ============================================ */
+.music-player{
+  text-align:center;padding:40px 20px;
+}
+.music-art{
+  width:200px;height:200px;border-radius:50%;
+  margin:0 auto 30px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:60px;
+  box-shadow:0 8px 40px var(--accent-glow);
+  transition:var(--transition-slow);
+}
+.music-art.playing{animation:spin 8s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.music-title{font-size:20px;font-weight:600;color:var(--text-primary)}
+.music-artist{font-size:14px;color:var(--text-secondary);margin-top:4px}
+.music-progress{
+  margin:24px 20px;
+}
+.music-bar{
+  width:100%;height:4px;background:var(--bg-tertiary);
+  border-radius:4px;overflow:hidden;cursor:pointer;
+}
+.music-bar-fill{height:100%;background:var(--accent);border-radius:4px;transition:width 0.5s linear}
+.music-times{
+  display:flex;justify-content:space-between;
+  font-size:11px;color:var(--text-muted);margin-top:6px;
+}
+.music-controls{
+  display:flex;align-items:center;justify-content:center;gap:24px;
+  margin-top:20px;
+}
+.mc-btn{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:22px;
+  color:var(--text-secondary);
+  transition:var(--transition-fast);
+}
+.mc-btn:active{color:var(--accent);transform:scale(0.9)}
+.mc-play{
+  width:64px;height:64px;
+  background:var(--accent);color:#000;
+  font-size:28px;
+  box-shadow:0 4px 20px var(--accent-glow);
+}
+.mc-play:active{background:#00b8d9}
+.music-list{padding:0 16px 20px}
+.music-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px;margin-bottom:4px;
+  border-radius:var(--radius);
+  cursor:pointer;transition:var(--transition-fast);
+}
+.music-item:active{background:var(--bg-glass-light)}
+.music-item.playing-now{background:rgba(0,212,255,0.1)}
+.mi-art{
+  width:44px;height:44px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;
+}
+.mi-info{flex:1}
+.mi-title{font-size:14px;font-weight:500;color:var(--text-primary)}
+.mi-artist{font-size:12px;color:var(--text-muted)}
+.mi-dur{font-size:12px;color:var(--text-muted)}
+
+/* ============================================
+   ANIMATIONS & UTILITIES
+   ============================================ */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes ripple{
+  to{transform:scale(4);opacity:0}
+}
+.ripple{
+  position:absolute;border-radius:50%;
+  background:rgba(255,255,255,0.3);
+  transform:scale(0);animation:ripple 0.6s linear;
+  pointer-events:none;
+}
+
+/* Scrollbar hidden globally */
+*::-webkit-scrollbar{display:none}
+*{scrollbar-width:none}
+
+/* Responsive adjustments */
+@media(min-width:421px){
+  #phone{
+    border-radius:40px;
+    margin-top:max(0px,calc((100vh - 900px)/2));
+    box-shadow:0 0 0 8px #111,0 0 0 10px #333,0 20px 80px rgba(0,0,0,0.8);
+  }
+  #statusbar,#notif-panel,#appdrawer,#app-container,#lockscreen,
+  #recents,.camera-flash{
+    border-radius:40px;overflow:hidden;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="phone">
+  <!-- Wallpaper -->
+  <div id="wallpaper" class="wp-default"></div>
+
+  <!-- Lock Screen -->
+  <div id="lockscreen">
+    <div class="lock-time" id="lock-time">12:00</div>
+    <div class="lock-date" id="lock-date">Monday, January 1</div>
+    <div class="lock-hint">⬆ Swipe up to unlock</div>
+    <div class="lock-swipe-area" id="lock-swipe"></div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="statusbar">
+    <div class="sb-left">
+      <span id="sb-time">12:00</span>
+    </div>
+    <div class="sb-center">
+      <span id="sb-carrier">MotoOS</span>
+    </div>
+    <div class="sb-right">
+      <span id="sb-wifi" title="WiFi">📶</span>
+      <span id="sb-signal">📱</span>
+      <div class="sb-battery">
+        <span id="sb-bat-pct">85%</span>
+        <div class="battery-icon">
+          <div class="battery-fill" id="sb-bat-fill" style="width:85%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Home Screen -->
+  <div id="homescreen">
+    <!-- Time Widget -->
+    <div class="home-widget" id="time-widget">
+      <div class="widget-time" id="widget-time">12:00</div>
+      <div class="widget-date" id="widget-date">Monday, January 1</div>
+      <div class="widget-weather">
+        <span>☀️</span>
+        <span class="weather-temp">24°C</span>
+        <span>· Sunny</span>
+      </div>
+    </div>
+
+    <!-- Search Widget -->
+    <div class="search-widget" onclick="openApp('browser')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <span>Search the web...</span>
+    </div>
+
+    <!-- App Grid on Home -->
+    <div class="app-grid" id="home-apps"></div>
+  </div>
+
+  <!-- Dock -->
+  <div id="dock"></div>
+
+  <!-- Navigation Bar -->
+  <div id="navbar">
+    <div class="nav-btn" onclick="navBack()" title="Back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </div>
+    <div class="nav-pill" onclick="navHome()" id="nav-pill"></div>
+    <div class="nav-btn" onclick="navRecents()" title="Recent Apps">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    </div>
+  </div>
+
+  <!-- App Drawer -->
+  <div id="appdrawer">
+    <div class="drawer-handle"></div>
+    <div class="drawer-search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.5">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="text" placeholder="Search apps..." id="drawer-search-input" oninput="filterApps(this.value)">
+    </div>
+    <div class="drawer-grid">
+      <div class="drawer-apps" id="drawer-apps"></div>
+    </div>
+  </div>
+
+  <!-- Notification Panel -->
+  <div id="notif-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:12px;color:var(--text-muted);font-weight:700" id="notif-date-display">Monday, Jan 1</span>
+      <span style="font-size:20px;cursor:pointer" onclick="openApp('settings');closeNotifPanel()">⚙️</span>
+    </div>
+    <div class="quick-toggles" id="quick-toggles"></div>
+    <div class="brightness-slider">
+      <span style="font-size:16px">🔅</span>
+      <input type="range" min="30" max="100" value="80" id="brightness-slider" oninput="setBrightness(this.value)">
+      <span style="font-size:16px">🔆</span>
+    </div>
+    <div class="notif-section-title">Notifications</div>
+    <div id="notif-list"></div>
+  </div>
+
+  <!-- Recent Apps -->
+  <div id="recents">
+    <div id="recents-list"></div>
+    <button class="clear-all-btn" onclick="clearRecents()">Clear All</button>
+  </div>
+
+  <!-- App Container -->
+  <div id="app-container"></div>
+
+  <!-- Camera flash effect -->
+  <div class="camera-flash" id="camera-flash"></div>
+
+  <!-- File Preview Modal -->
+  <div class="file-preview-modal" id="file-preview-modal">
+    <div class="fpm-close" onclick="closeFilePreview()">✕</div>
+    <img id="fpm-image" src="">
+    <div class="fpm-actions">
+      <button class="fpm-btn delete" id="fpm-delete-btn">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input-hidden" style="display:none" multiple accept="image/*,video/*,.pdf,.txt,.doc" onchange="handleFileUpload(event)">
+<canvas id="photo-canvas" style="display:none"></canvas>
+
+<script>
+// ============================================
+// STATE & CONFIG
+// ============================================
+const STATE = {
+  locked: true,
+  currentApp: null,
+  recentApps: [],
+  drawerOpen: false,
+  notifOpen: false,
+  recentsOpen: false,
+  battery: 85,
+  batteryDraining: true,
+  darkMode: true,
+  wifiOn: true,
+  bluetoothOn: false,
+  soundOn: true,
+  airplaneMode: false,
+  flashlightOn: false,
+  autoRotate: true,
+  wallpaper: 'wp-default',
+  files: [],
+  notes: [],
+  musicPlaying: false,
+  musicIndex: 0,
+  musicProgress: 0,
+  dialerNumber: '',
+  calcDisplay: '0',
+  calcExpression: '',
+  calcNewNumber: true,
+};
+
+// Load from localStorage
+function loadState() {
+  try {
+    const saved = localStorage.getItem('motoos-state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.assign(STATE, parsed);
+    }
+  } catch(e) {}
+}
+function saveState() {
+  try {
+    const toSave = { ...STATE };
+    delete toSave.currentApp;
+    delete toSave.locked;
+    delete toSave.drawerOpen;
+    delete toSave.notifOpen;
+    delete toSave.recentsOpen;
+    localStorage.setItem('motoos-state', JSON.stringify(toSave));
+  } catch(e) {}
+}
+
+// ============================================
+// APP DEFINITIONS
+// ============================================
+const APPS = [
+  { id:'phone',     name:'Phone',      icon:'📞', color:'#4CAF50',  category:'dock' },
+  { id:'messages',  name:'Messages',   icon:'💬', color:'#2196F3',  category:'dock' },
+  { id:'camera',    name:'Camera',     icon:'📷', color:'#607D8B',  category:'dock' },
+  { id:'browser',   name:'Chrome',     icon:'🌐', color:'#FF5722',  category:'dock' },
+  { id:'settings',  name:'Settings',   icon:'⚙️', color:'#455A64',  category:'home' },
+  { id:'files',     name:'Files',      icon:'📁', color:'#FF9800',  category:'home' },
+  { id:'calculator',name:'Calculator', icon:'🧮', color:'#795548',  category:'home' },
+  { id:'youtube',   name:'YouTube',    icon:'▶️', color:'#F44336',  category:'home' },
+  { id:'instagram', name:'Instagram',  icon:'📸', color:'#E91E63',  category:'home' },
+  { id:'clock',     name:'Clock',      icon:'🕐', color:'#3F51B5',  category:'home' },
+  { id:'weather',   name:'Weather',    icon:'🌤️', color:'#00BCD4',  category:'home' },
+  { id:'notes',     name:'Notes',      icon:'📝', color:'#FFC107',  category:'home' },
+  { id:'music',     name:'Music',      icon:'🎵', color:'#9C27B0',  category:'drawer' },
+  { id:'maps',      name:'Maps',       icon:'🗺️', color:'#4CAF50',  category:'drawer' },
+  { id:'photos',    name:'Photos',     icon:'🖼️', color:'#E91E63',  category:'drawer' },
+  { id:'contacts',  name:'Contacts',   icon:'👤', color:'#2196F3',  category:'drawer' },
+  { id:'calendar',  name:'Calendar',   icon:'📅', color:'#009688',  category:'drawer' },
+  { id:'store',     name:'Play Store', icon:'🛒', color:'#4CAF50',  category:'drawer' },
+  { id:'gmail',     name:'Gmail',      icon:'✉️', color:'#F44336',  category:'drawer' },
+  { id:'drive',     name:'Drive',      icon:'☁️', color:'#FFC107',  category:'drawer' },
+];
+
+const MUSIC_TRACKS = [
+  { title:'Midnight Dreams', artist:'Neon Pulse', dur:'3:42', color:'#7c4dff' },
+  { title:'Electric Sunrise', artist:'Synthwave Co.', dur:'4:15', color:'#00d4ff' },
+  { title:'Starlight Avenue', artist:'Luna Echo', dur:'3:58', color:'#e91e63' },
+  { title:'Digital Rain', artist:'Cyber Motion', dur:'5:01', color:'#00e676' },
+  { title:'Ocean Drive', artist:'RetroWave', dur:'4:33', color:'#ff9800' },
+];
+
+const NOTIFICATIONS = [
+  { app:'Instagram', icon:'📸', color:'#E91E63', title:'New follower', text:'synthwave_co started following you', time:'2m' },
+  { app:'Messages', icon:'💬', color:'#2196F3', title:'John', text:'Hey! Are you coming tonight?', time:'15m' },
+  { app:'YouTube', icon:'▶️', color:'#F44336', title:'New video', text:'Neon Pulse uploaded: Midnight Dreams', time:'1h' },
+  { app:'Gmail', icon:'✉️', color:'#F44336', title:'Meeting update', text:'Tomorrow\'s standup moved to 10 AM', time:'2h' },
+  { app:'Weather', icon:'🌤️', color:'#00BCD4', title:'Weather alert', text:'Clear skies expected all day, 24°C', time:'3h' },
+];
+
+const IG_POSTS = [
+  { user:'neon_dreams', avatar:'🌃', img:'linear-gradient(135deg,#667eea,#764ba2)', likes:1243, caption:'Lost in the city lights ✨ #nightlife', liked:false },
+  { user:'travel.vibes', avatar:'✈️', img:'linear-gradient(135deg,#f093fb,#f5576c)', likes:892, caption:'Sunset paradise 🌅 #travel #sunset', liked:false },
+  { user:'tech.daily', avatar:'💻', img:'linear-gradient(135deg,#4facfe,#00f2fe)', likes:2150, caption:'The future is now 🚀 #tech #innovation', liked:false },
+  { user:'food.art', avatar:'🍜', img:'linear-gradient(135deg,#fa709a,#fee140)', likes:567, caption:'Sunday brunch goals 🥑 #foodie', liked:false },
+];
+
+const YT_VIDEOS = [
+  { id:'dQw4w9WgXcQ', title:'Amazing Synthwave Mix | Retrowave', channel:'Neon Music', views:'2.4M views', time:'3 months ago', dur:'1:02:34' },
+  { id:'jfKfPfyJRdk', title:'Lofi Hip Hop Radio - Beats to Study', channel:'Lofi Girl', views:'15M views', time:'Streaming now', dur:'LIVE' },
+  { id:'5qap5aO4i9A', title:'Relaxing Night Jazz & Smooth Background', channel:'Cafe Music BGM', views:'8.1M views', time:'1 year ago', dur:'3:24:01' },
+  { id:'lTRiuFIWV54', title:'Earth From Space - 4K Relaxation Video', channel:'NASA', views:'12M views', time:'6 months ago', dur:'45:12' },
+];
+
+// ============================================
+// INITIALIZATION
+// ============================================
+loadState();
+
+document.addEventListener('DOMContentLoaded', () => {
+  applyTheme();
+  applyWallpaper();
+  renderHomeApps();
+  renderDock();
+  renderDrawerApps();
+  renderQuickToggles();
+  renderNotifications();
+  createAppWindows();
+  updateTime();
+  setInterval(updateTime, 1000);
+  startBatteryDrain();
+  setupGestures();
+});
+
+// ============================================
+// TIME & STATUS
+// ============================================
+function updateTime() {
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  const s = now.getSeconds().toString().padStart(2,'0');
+  const timeStr = `${h}:${m}`;
+
+  document.getElementById('sb-time').textContent = timeStr;
+  document.getElementById('widget-time').textContent = timeStr;
+  document.getElementById('lock-time').textContent = timeStr;
+
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+  const dateShort = `${days[now.getDay()]}, ${months[now.getMonth()].substring(0,3)} ${now.getDate()}`;
+
+  document.getElementById('widget-date').textContent = dateStr;
+  document.getElementById('lock-date').textContent = dateStr;
+  document.getElementById('notif-date-display').textContent = dateShort;
+
+  // Update clock app if open
+  const clockDigital = document.getElementById('clock-digital');
+  if (clockDigital) {
+    clockDigital.innerHTML = `${h}:${m}<span class="clock-digital-secs">:${s}</span>`;
+  }
+  updateAnalogClock(now);
+  updateBatteryDisplay();
+}
+
+function updateAnalogClock(now) {
+  const h = now.getHours() % 12;
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const hourHand = document.querySelector('.clock-hand.hour');
+  const minHand = document.querySelector('.clock-hand.minute');
+  const secHand = document.querySelector('.clock-hand.second');
+  if (hourHand) hourHand.style.transform = `rotate(${h * 30 + m * 0.5}deg)`;
+  if (minHand) minHand.style.transform = `rotate(${m * 6}deg)`;
+  if (secHand) secHand.style.transform = `rotate(${s * 6}deg)`;
+}
+
+function startBatteryDrain() {
+  setInterval(() => {
+    if (STATE.batteryDraining && STATE.battery > 5) {
+      STATE.battery = Math.max(5, STATE.battery - 1);
+      updateBatteryDisplay();
+    }
+  }, 30000); // drain 1% every 30s
+}
+
+function updateBatteryDisplay() {
+  const pct = STATE.battery;
+  document.getElementById('sb-bat-pct').textContent = pct + '%';
+  const fill = document.getElementById('sb-bat-fill');
+  fill.style.width = pct + '%';
+  fill.className = 'battery-fill' + (pct <= 20 ? ' low' : pct <= 50 ? ' medium' : '');
+}
+
+// ============================================
+// THEME & WALLPAPER
+// ============================================
+function applyTheme() {
+  document.getElementById('phone').classList.toggle('light-mode', !STATE.darkMode);
+}
+function toggleDarkMode() {
+  STATE.darkMode = !STATE.darkMode;
+  applyTheme();
+  saveState();
+  renderQuickToggles();
+  renderSettingsContent();
+}
+function applyWallpaper() {
+  const wp = document.getElementById('wallpaper');
+  wp.className = STATE.wallpaper;
+}
+function setWallpaper(cls) {
+  STATE.wallpaper = cls;
+  applyWallpaper();
+  saveState();
+  renderSettingsContent();
+}
+function setBrightness(val) {
+  document.getElementById('phone').style.filter = `brightness(${val/100})`;
+}
+
+// ============================================
+// RENDER HOME SCREEN
+// ============================================
+function renderHomeApps() {
+  const grid = document.getElementById('home-apps');
+  const homeApps = APPS.filter(a => a.category === 'home');
+  grid.innerHTML = homeApps.map(a => createAppIconHTML(a)).join('');
+}
+
+function renderDock() {
+  const dock = document.getElementById('dock');
+  const dockApps = APPS.filter(a => a.category === 'dock');
+  dock.innerHTML = dockApps.map(a => createAppIconHTML(a, true)).join('');
+}
+
+function renderDrawerApps(filter = '') {
+  const grid = document.getElementById('drawer-apps');
+  let apps = APPS;
+  if (filter) apps = apps.filter(a => a.name.toLowerCase().includes(filter.toLowerCase()));
+  grid.innerHTML = apps.map(a => createAppIconHTML(a)).join('');
+}
+
+function createAppIconHTML(app, isDock = false) {
+  const badge = app.id === 'messages' ? '<div class="app-badge">3</div>' : 
+                app.id === 'instagram' ? '<div class="app-badge">5</div>' : '';
+  return `
+    <div class="app-icon" onclick="openApp('${app.id}')" ontouchstart="this.classList.add('pressing')" ontouchend="this.classList.remove('pressing')">
+      <div class="app-icon-img" style="background:${app.color}">${app.icon}${badge}</div>
+      ${isDock ? '' : `<div class="app-icon-label">${app.name}</div>`}
+    </div>
+  `;
+}
+
+function filterApps(val) { renderDrawerApps(val); }
+
+// ============================================
+// QUICK TOGGLES
+// ============================================
+function renderQuickToggles() {
+  const container = document.getElementById('quick-toggles');
+  const toggles = [
+    { id:'wifi', icon:'📶', label:'Wi-Fi', active: STATE.wifiOn },
+    { id:'bluetooth', icon:'🔵', label:'Bluetooth', active: STATE.bluetoothOn },
+    { id:'airplane', icon:'✈️', label:'Airplane', active: STATE.airplaneMode },
+    { id:'flashlight', icon:'🔦', label:'Flashlight', active: STATE.flashlightOn },
+    { id:'sound', icon: STATE.soundOn ? '🔊' : '🔇', label:'Sound', active: STATE.soundOn },
+    { id:'rotate', icon:'🔄', label:'Rotate', active: STATE.autoRotate },
+    { id:'darkmode', icon:'🌙', label:'Dark', active: STATE.darkMode },
+    { id:'battery', icon:'🔋', label:'Saver', active: false },
+  ];
+  container.innerHTML = toggles.map(t => `
+    <div class="qt-btn ${t.active ? 'active' : ''}" onclick="toggleQuick('${t.id}')">
+      <span class="qt-icon">${t.icon}</span>
+      ${t.label}
+    </div>
+  `).join('');
+}
+
+function toggleQuick(id) {
+  playClick();
+  switch(id) {
+    case 'wifi': STATE.wifiOn = !STATE.wifiOn; break;
+    case 'bluetooth': STATE.bluetoothOn = !STATE.bluetoothOn; break;
+    case 'airplane': STATE.airplaneMode = !STATE.airplaneMode; break;
+    case 'flashlight': STATE.flashlightOn = !STATE.flashlightOn; break;
+    case 'sound': STATE.soundOn = !STATE.soundOn; break;
+    case 'rotate': STATE.autoRotate = !STATE.autoRotate; break;
+    case 'darkmode': toggleDarkMode(); return;
+  }
+  document.getElementById('sb-wifi').textContent = STATE.wifiOn ? '📶' : '📵';
+  saveState();
+  renderQuickToggles();
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+function renderNotifications() {
+  const list = document.getElementById('notif-list');
+  list.innerHTML = NOTIFICATIONS.map(n => `
+    <div class="notif-card">
+      <div class="notif-icon" style="background:${n.color}">${n.icon}</div>
+      <div class="notif-content">
+        <div class="notif-app">${n.app}</div>
+        <div class="notif-title">${n.title}</div>
+        <div class="notif-text">${n.text}</div>
+      </div>
+      <div class="notif-time">${n.time}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================
+// GESTURES
+// ============================================
+function setupGestures() {
+  let startY = 0, startX = 0, isDragging = false;
+  const phone = document.getElementById('phone');
+
+  // Lock screen swipe
+  const lockSwipe = document.getElementById('lock-swipe');
+  let lockStartY = 0;
+  lockSwipe.addEventListener('touchstart', e => { lockStartY = e.touches[0].clientY; }, {passive:true});
+  lockSwipe.addEventListener('touchend', e => {
+    const diff = lockStartY - e.changedTouches[0].clientY;
+    if (diff > 60) unlock();
+  }, {passive:true});
+  lockSwipe.addEventListener('click', () => unlock());
+
+  // Notification panel swipe down from status bar
+  const statusbar = document.getElementById('statusbar');
+  statusbar.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, {passive:true});
+  statusbar.addEventListener('touchend', e => {
+    const diff = e.changedTouches[0].clientY - startY;
+    if (diff > 40 && !STATE.locked) toggleNotifPanel(true);
+  }, {passive:true});
+  statusbar.addEventListener('click', () => {
+    if (!STATE.locked) toggleNotifPanel(!STATE.notifOpen);
+  });
+
+  // App drawer swipe up from home
+  const homescreen = document.getElementById('homescreen');
+  homescreen.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+  }, {passive:true});
+  homescreen.addEventListener('touchend', e => {
+    const diffY = startY - e.changedTouches[0].clientY;
+    const diffX = Math.abs(startX - e.changedTouches[0].clientX);
+    if (diffY > 80 && diffX < 100 && !STATE.currentApp) toggleDrawer(true);
+  }, {passive:true});
+
+  // Drawer swipe down to close
+  const drawer = document.getElementById('appdrawer');
+  drawer.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, {passive:true});
+  drawer.addEventListener('touchend', e => {
+    const diff = e.changedTouches[0].clientY - startY;
+    if (diff > 80) toggleDrawer(false);
+  }, {passive:true});
+
+  // Notif panel swipe up to close
+  const notifPanel = document.getElementById('notif-panel');
+  notifPanel.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, {passive:true});
+  notifPanel.addEventListener('touchend', e => {
+    const diff = startY - e.changedTouches[0].clientY;
+    if (diff > 80) toggleNotifPanel(false);
+  }, {passive:true});
+}
+
+// ============================================
+// LOCK SCREEN
+// ============================================
+function unlock() {
+  playClick();
+  STATE.locked = false;
+  document.getElementById('lockscreen').classList.add('unlocked');
+}
+function lockPhone() {
+  STATE.locked = true;
+  document.getElementById('lockscreen').classList.remove('unlocked');
+}
+
+// ============================================
+// NAVIGATION
+// ============================================
+function navBack() {
+  playClick();
+  if (STATE.notifOpen) { toggleNotifPanel(false); return; }
+  if (STATE.drawerOpen) { toggleDrawer(false); return; }
+  if (STATE.recentsOpen) { closeRecents(); return; }
+  if (STATE.currentApp) { closeCurrentApp(); return; }
+}
+
+function navHome() {
+  playClick();
+  if (STATE.notifOpen) toggleNotifPanel(false);
+  if (STATE.drawerOpen) toggleDrawer(false);
+  if (STATE.recentsOpen) closeRecents();
+  if (STATE.currentApp) closeCurrentApp();
+}
+
+function navRecents() {
+  playClick();
+  if (STATE.notifOpen) toggleNotifPanel(false);
+  if (STATE.drawerOpen) toggleDrawer(false);
+  if (STATE.recentsOpen) { closeRecents(); return; }
+  openRecents();
+}
+
+// ============================================
+// APP DRAWER
+// ============================================
+function toggleDrawer(open) {
+  STATE.drawerOpen = open;
+  document.getElementById('appdrawer').classList.toggle('open', open);
+  if (open) {
+    document.getElementById('drawer-search-input').value = '';
+    renderDrawerApps();
+  }
+}
+
+// ============================================
+// NOTIFICATION PANEL
+// ============================================
+function toggleNotifPanel(open) {
+  STATE.notifOpen = open;
+  document.getElementById('notif-panel').classList.toggle('open', open);
+}
+function closeNotifPanel() { toggleNotifPanel(false); }
+
+// ============================================
+// RECENT APPS
+// ============================================
+function openRecents() {
+  STATE.recentsOpen = true;
+  const recents = document.getElementById('recents');
+  recents.classList.add('open');
+  renderRecents();
+}
+function closeRecents() {
+  STATE.recentsOpen = false;
+  document.getElementById('recents').classList.remove('open');
+}
+function renderRecents() {
+  const list = document.getElementById('recents-list');
+  if (STATE.recentApps.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:60px 0;font-size:14px">No recent apps</div>';
+    return;
+  }
+  list.innerHTML = STATE.recentApps.map(id => {
+    const app = APPS.find(a => a.id === id);
+    if (!app) return '';
+    return `
+      <div class="recent-card" onclick="switchToApp('${id}')">
+        <div class="recent-card-header">
+          <span class="rc-icon">${app.icon}</span>
+          ${app.name}
+          <div class="recent-close" onclick="event.stopPropagation();removeRecent('${id}')">✕</div>
+        </div>
+        <div class="recent-card-body">${app.name} preview</div>
+      </div>
+    `;
+  }).join('');
+}
+function removeRecent(id) {
+  STATE.recentApps = STATE.recentApps.filter(a => a !== id);
+  renderRecents();
+}
+function clearRecents() {
+  STATE.recentApps = [];
+  renderRecents();
+  setTimeout(closeRecents, 300);
+}
+function switchToApp(id) {
+  closeRecents();
+  openApp(id);
+}
+
+// ============================================
+// APP WINDOW SYSTEM
+// ============================================
+function createAppWindows() {
+  const container = document.getElementById('app-container');
+  container.innerHTML = APPS.map(app => `
+    <div class="app-window" id="app-${app.id}" data-app="${app.id}">
+      ${getAppContent(app)}
+    </div>
+  `).join('');
+}
+
+function openApp(id) {
+  playClick();
+  if (STATE.drawerOpen) toggleDrawer(false);
+  if (STATE.notifOpen) toggleNotifPanel(false);
+  if (STATE.recentsOpen) closeRecents();
+
+  // Close current app first
+  if (STATE.currentApp && STATE.currentApp !== id) {
+    const prev = document.getElementById('app-' + STATE.currentApp);
+    if (prev) prev.classList.remove('active');
+  }
+
+  STATE.currentApp = id;
+  
+  // Add to recents
+  STATE.recentApps = STATE.recentApps.filter(a => a !== id);
+  STATE.recentApps.unshift(id);
+  if (STATE.recentApps.length > 5) STATE.recentApps.pop();
+
+  const win = document.getElementById('app-' + id);
+  if (win) {
+    win.classList.add('active');
+    // Make statusbar opaque when app is open
+    document.getElementById('statusbar').classList.add('opaque');
+  }
+
+  // App-specific init
+  if (id === 'camera') initCamera();
+  if (id === 'calculator') initCalc();
+  if (id === 'settings') renderSettingsContent();
+  if (id === 'music') updateMusicUI();
+}
+
+function closeCurrentApp() {
+  if (!STATE.currentApp) return;
+  const win = document.getElementById('app-' + STATE.currentApp);
+  if (win) win.classList.remove('active');
+  
+  // Stop camera if open
+  if (STATE.currentApp === 'camera') stopCamera();
+  
+  STATE.currentApp = null;
+  document.getElementById('statusbar').classList.remove('opaque');
+}
+
+// ============================================
+// APP CONTENT GENERATORS
+// ============================================
+function getAppContent(app) {
+  switch(app.id) {
+    case 'settings': return getSettingsApp();
+    case 'calculator': return getCalculatorApp();
+    case 'camera': return getCameraApp();
+    case 'files': return getFilesApp();
+    case 'browser': return getBrowserApp();
+    case 'youtube': return getYouTubeApp();
+    case 'instagram': return getInstagramApp();
+    case 'clock': return getClockApp();
+    case 'weather': return getWeatherApp();
+    case 'notes': return getNotesApp();
+    case 'music': return getMusicApp();
+    case 'phone': return getPhoneApp();
+    default: return getGenericApp(app);
+  }
+}
+
+function appHeader(title, extra = '') {
+  return `
+    <div class="app-header">
+      <div class="app-back" onclick="closeCurrentApp()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="app-title">${title}</div>
+      ${extra}
+    </div>
+  `;
+}
+
+// ---- SETTINGS ----
+function getSettingsApp() {
+  return appHeader('Settings') + '<div class="app-body" id="settings-body"></div>';
+}
+function renderSettingsContent() {
+  const body = document.getElementById('settings-body');
+  if (!body) return;
+  const wpOptions = [
+    { cls:'wp-default', style:'background:linear-gradient(160deg,#0a0020,#162447,#1b1b2f)' },
+    { cls:'wp-gradient1', style:'background:linear-gradient(135deg,#0f0c29,#302b63,#24243e)' },
+    { cls:'wp-gradient2', style:'background:linear-gradient(135deg,#000428,#004e92)' },
+    { cls:'wp-gradient3', style:'background:linear-gradient(135deg,#1a002e,#4a0080,#7c21a6)' },
+    { cls:'wp-gradient4', style:'background:linear-gradient(135deg,#001510,#004d40)' },
+    { cls:'wp-gradient5', style:'background:linear-gradient(135deg,#1a0000,#800000)' },
+  ];
+  body.innerHTML = `
+    <div class="settings-list">
+      <div class="device-info">
+        <div class="device-logo">📱</div>
+        <h3>Motorola Edge 40</h3>
+        <p>Android 10 · MotoOS 2.1</p>
+        <p>Build: MOT.2024.01.15</p>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Display</div>
+        <div class="settings-item" onclick="toggleDarkMode()">
+          <div class="si-icon" style="background:#1a1a2e">🌙</div>
+          <div class="si-text"><div class="si-title">Dark Mode</div><div class="si-sub">${STATE.darkMode ? 'On' : 'Off'}</div></div>
+          <div class="toggle ${STATE.darkMode ? 'on' : ''}"></div>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Network</div>
+        <div class="settings-item" onclick="toggleQuick('wifi');renderSettingsContent()">
+          <div class="si-icon" style="background:#1565C0">📶</div>
+          <div class="si-text"><div class="si-title">Wi-Fi</div><div class="si-sub">${STATE.wifiOn ? 'Connected to MotoNet-5G' : 'Off'}</div></div>
+          <div class="toggle ${STATE.wifiOn ? 'on' : ''}"></div>
+        </div>
+        <div class="settings-item" onclick="toggleQuick('bluetooth');renderSettingsContent()">
+          <div class="si-icon" style="background:#0D47A1">🔵</div>
+          <div class="si-text"><div class="si-title">Bluetooth</div><div class="si-sub">${STATE.bluetoothOn ? 'On' : 'Off'}</div></div>
+          <div class="toggle ${STATE.bluetoothOn ? 'on' : ''}"></div>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Sound</div>
+        <div class="settings-item" onclick="toggleQuick('sound');renderSettingsContent()">
+          <div class="si-icon" style="background:#E65100">${STATE.soundOn ? '🔊' : '🔇'}</div>
+          <div class="si-text"><div class="si-title">Sound</div><div class="si-sub">${STATE.soundOn ? 'On' : 'Silent'}</div></div>
+          <div class="toggle ${STATE.soundOn ? 'on' : ''}"></div>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Wallpaper</div>
+        <div class="wp-picker">
+          ${wpOptions.map(w => `
+            <div class="wp-option ${STATE.wallpaper === w.cls ? 'selected' : ''}" 
+                 style="${w.style}" onclick="setWallpaper('${w.cls}')"></div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">About</div>
+        <div class="settings-item">
+          <div class="si-icon" style="background:#455A64">ℹ️</div>
+          <div class="si-text"><div class="si-title">Device Name</div><div class="si-sub">Motorola Edge 40</div></div>
+        </div>
+        <div class="settings-item">
+          <div class="si-icon" style="background:#455A64">📊</div>
+          <div class="si-text"><div class="si-title">Storage</div><div class="si-sub">48.2 GB / 128 GB used</div></div>
+        </div>
+        <div class="settings-item">
+          <div class="si-icon" style="background:#455A64">🔄</div>
+          <div class="si-text"><div class="si-title">Software Update</div><div class="si-sub">Up to date</div></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- CALCULATOR ----
+function getCalculatorApp() {
+  return `
+    <div class="app-header" style="border:none;background:transparent">
+      <div class="app-back" onclick="closeCurrentApp()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="app-title">Calculator</div>
+    </div>
+    <div class="calc-display">
+      <div class="calc-expression" id="calc-expr"></div>
+      <div class="calc-result" id="calc-result">0</div>
+    </div>
+    <div class="calc-grid" id="calc-grid">
+      <div class="calc-btn fn" onclick="calcInput('AC')">AC</div>
+      <div class="calc-btn fn" onclick="calcInput('±')">±</div>
+      <div class="calc-btn fn" onclick="calcInput('%')">%</div>
+      <div class="calc-btn op" onclick="calcInput('÷')">÷</div>
+      <div class="calc-btn" onclick="calcInput('7')">7</div>
+      <div class="calc-btn" onclick="calcInput('8')">8</div>
+      <div class="calc-btn" onclick="calcInput('9')">9</div>
+      <div class="calc-btn op" onclick="calcInput('×')">×</div>
+      <div class="calc-btn" onclick="calcInput('4')">4</div>
+      <div class="calc-btn" onclick="calcInput('5')">5</div>
+      <div class="calc-btn" onclick="calcInput('6')">6</div>
+      <div class="calc-btn op" onclick="calcInput('-')">−</div>
+      <div class="calc-btn" onclick="calcInput('1')">1</div>
+      <div class="calc-btn" onclick="calcInput('2')">2</div>
+      <div class="calc-btn" onclick="calcInput('3')">3</div>
+      <div class="calc-btn op" onclick="calcInput('+')">+</div>
+      <div class="calc-btn" onclick="calcInput('0')" style="grid-column:span 2">0</div>
+      <div class="calc-btn" onclick="calcInput('.')">.</div>
+      <div class="calc-btn eq" onclick="calcInput('=')">=</div>
+    </div>
+  `;
+}
+
+function initCalc() {
+  STATE.calcDisplay = '0';
+  STATE.calcExpression = '';
+  STATE.calcNewNumber = true;
+  updateCalcDisplay();
+}
+
+function calcInput(val) {
+  playClick();
+  if (val === 'AC') {
+    STATE.calcDisplay = '0';
+    STATE.calcExpression = '';
+    STATE.calcNewNumber = true;
+  } else if (val === '±') {
+    if (STATE.calcDisplay !== '0') {
+      STATE.calcDisplay = STATE.calcDisplay.startsWith('-') ? STATE.calcDisplay.slice(1) : '-' + STATE.calcDisplay;
+    }
+  } else if (val === '%') {
+    STATE.calcDisplay = String(parseFloat(STATE.calcDisplay) / 100);
+  } else if (['+','-','×','÷'].includes(val)) {
+    STATE.calcExpression = STATE.calcDisplay + ' ' + val + ' ';
+    STATE.calcNewNumber = true;
+  } else if (val === '=') {
+    try {
+      const expr = (STATE.calcExpression + STATE.calcDisplay)
+        .replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+      const result = Function('"use strict";return (' + expr + ')')();
+      STATE.calcExpression = STATE.calcExpression + STATE.calcDisplay + ' =';
+      STATE.calcDisplay = String(Math.round(result * 1e10) / 1e10);
+      STATE.calcNewNumber = true;
+    } catch (e) {
+      STATE.calcDisplay = 'Error';
+      STATE.calcNewNumber = true;
+    }
+  } else if (val === '.') {
+    if (STATE.calcNewNumber) { STATE.calcDisplay = '0.'; STATE.calcNewNumber = false; }
+    else if (!STATE.calcDisplay.includes('.')) STATE.calcDisplay += '.';
+  } else {
+    if (STATE.calcNewNumber) { STATE.calcDisplay = val; STATE.calcNewNumber = false; }
+    else STATE.calcDisplay += val;
+  }
+  updateCalcDisplay();
+}
+
+function updateCalcDisplay() {
+  const expr = document.getElementById('calc-expr');
+  const result = document.getElementById('calc-result');
+  if (expr) expr.textContent = STATE.calcExpression;
+  if (result) result.textContent = STATE.calcDisplay;
+}
+
+// ---- CAMERA ----
+let cameraStream = null;
+function getCameraApp() {
+  return `
+    <div class="camera-viewfinder">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <div id="camera-preview-thumb-el" class="camera-preview-thumb" style="display:none" onclick="openApp('files')"></div>
+      <div class="camera-controls">
+        <div class="cam-btn" onclick="switchCameraFacing()">🔄</div>
+        <div class="capture-btn" onclick="capturePhoto()"></div>
+        <div class="cam-btn" onclick="openApp('files')">🖼️</div>
+      </div>
+    </div>
+  `;
+}
+
+let cameraFacing = 'user';
+async function initCamera() {
+  try {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+    }
+    cameraStream = await navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: cameraFacing, width:{ideal:1280}, height:{ideal:720} }, 
+      audio: false 
+    });
+    const video = document.getElementById('camera-video');
+    if (video) video.srcObject = cameraStream;
+  } catch (e) {
+    console.log('Camera not available:', e);
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+}
+
+function switchCameraFacing() {
+  cameraFacing = cameraFacing === 'user' ? 'environment' : 'user';
+  initCamera();
+}
+
+function capturePhoto() {
+  playClick();
+  const video = document.getElementById('camera-video');
+  const canvas = document.getElementById('photo-canvas');
+  if (!video || !canvas) return;
+  
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  
+  // Flash effect
+  const flash = document.getElementById('camera-flash');
+  flash.classList.add('flash');
+  setTimeout(() => flash.classList.remove('flash'), 150);
+  
+  const dataURL = canvas.toDataURL('image/jpeg', 0.85);
+  const file = {
+    id: Date.now(),
+    name: `IMG_${new Date().toISOString().slice(0,19).replace(/[:-]/g,'')}.jpg`,
+    type: 'image',
+    data: dataURL,
+    date: new Date().toLocaleDateString()
+  };
+  STATE.files.unshift(file);
+  saveState();
+  
+  // Show thumbnail preview
+  const thumb = document.getElementById('camera-preview-thumb-el');
+  if (thumb) {
+    thumb.style.display = 'block';
+    thumb.style.backgroundImage = `url(${dataURL})`;
+  }
+}
+
+// ---- FILE MANAGER ----
+function getFilesApp() {
+  return appHeader('Files', '<button class="fm-add-btn" onclick="document.getElementById(\'file-input-hidden\').click()">+ Add</button>') +
+    `<div class="app-body" id="files-body"></div>`;
+}
+
+function renderFilesBody() {
+  const body = document.getElementById('files-body');
+  if (!body) return;
+  if (STATE.files.length === 0) {
+    body.innerHTML = `
+      <div class="fm-empty">
+        <div class="fm-empty-icon">📂</div>
+        <p>No files yet</p>
+        <p style="font-size:12px;margin-top:8px">Take photos or upload files to see them here</p>
+      </div>
+    `;
+    return;
+  }
+  body.innerHTML = `
+    <div class="fm-toolbar">
+      <button class="fm-add-btn" onclick="document.getElementById('file-input-hidden').click()">+ Add Files</button>
+      <div class="fm-path">${STATE.files.length} items</div>
+    </div>
+    <div class="fm-grid">
+      ${STATE.files.map((f, i) => `
+        <div class="fm-item" onclick="previewFile(${i})">
+          <div class="fm-thumb" ${f.type === 'image' ? `style="background-image:url(${f.data})"` : ''}>
+            ${f.type !== 'image' ? '📄' : ''}
+          </div>
+          <div class="fm-name">${f.name}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function handleFileUpload(event) {
+  const files = event.target.files;
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const isImage = file.type.startsWith('image/');
+      STATE.files.unshift({
+        id: Date.now() + Math.random(),
+        name: file.name,
+        type: isImage ? 'image' : 'file',
+        data: e.target.result,
+        date: new Date().toLocaleDateString()
+      });
+      saveState();
+      renderFilesBody();
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function previewFile(index) {
+  const file = STATE.files[index];
+  if (!file || file.type !== 'image') return;
+  const modal = document.getElementById('file-preview-modal');
+  const img = document.getElementById('fpm-image');
+  const delBtn = document.getElementById('fpm-delete-btn');
+  img.src = file.data;
+  delBtn.onclick = () => {
+    STATE.files.splice(index, 1);
+    saveState();
+    closeFilePreview();
+    renderFilesBody();
+  };
+  modal.classList.add('open');
+}
+
+function closeFilePreview() {
+  document.getElementById('file-preview-modal').classList.remove('open');
+}
+
+// ---- BROWSER ----
+function getBrowserApp() {
+  return `
+    <div class="app-header" style="padding-bottom:0;min-height:auto;border:none">
+      <div class="app-back" onclick="closeCurrentApp()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="app-title">Chrome</div>
+    </div>
+    <div class="browser-bar">
+      <input class="browser-url" id="browser-url" type="url" placeholder="Search or enter URL" value="https://www.wikipedia.org" 
+        onkeydown="if(event.key==='Enter')browserGo()">
+      <button class="browser-go" onclick="browserGo()">→</button>
+    </div>
+    <div class="app-body" style="padding:0">
+      <iframe class="browser-frame" id="browser-frame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    </div>
+  `;
+}
+
+function browserGo() {
+  let url = document.getElementById('browser-url').value.trim();
+  if (!url.startsWith('http')) url = 'https://' + url;
+  if (!url.includes('.')) url = 'https://www.google.com/search?igu=1&q=' + encodeURIComponent(url);
+  document.getElementById('browser-frame').src = url;
+}
+
+// ---- YOUTUBE ----
+function getYouTubeApp() {
+  return `
+    <div class="yt-header">
+      <div class="yt-logo">▶ <span>YouTube</span></div>
+    </div>
+    <div class="app-body" style="background:var(--bg-primary)">
+      <div class="yt-feed">
+        ${YT_VIDEOS.map(v => `
+          <div class="yt-card">
+            <div class="yt-thumb">
+              <iframe src="https://www.youtube.com/embed/${v.id}?rel=0" allowfullscreen loading="lazy" allow="autoplay; encrypted-media"></iframe>
+              <div class="yt-duration">${v.dur}</div>
+            </div>
+            <div class="yt-info">
+              <div class="yt-avatar">🎬</div>
+              <div class="yt-meta">
+                <div class="yt-title">${v.title}</div>
+                <div class="yt-channel">${v.channel} · ${v.views} · ${v.time}</div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ---- INSTAGRAM ----
+function getInstagramApp() {
+  const stories = ['Your story','neon_lab','synth.wav','cyber.art','retro.grl','dj_nova','pixel_co'];
+  return `
+    <div class="ig-header">
+      <div class="ig-logo">Ɪnstagram</div>
+      <div class="ig-icons">
+        <span>♡</span>
+        <span>✉</span>
+      </div>
+    </div>
+    <div class="app-body" id="ig-body" style="background:var(--bg-primary)">
+      <div class="ig-stories">
+        ${stories.map((s, i) => `
+          <div class="ig-story">
+            <div class="ig-story-ring"><div class="ig-story-img">${['➕','🌃','🎹','🎨','👩','🎧','💡'][i]}</div></div>
+            <div class="ig-story-name">${s}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div id="ig-feed"></div>
+    </div>
+  `;
+}
+
+function renderIGFeed() {
+  const feed = document.getElementById('ig-feed');
+  if (!feed) return;
+  feed.innerHTML = IG_POSTS.map((p, i) => `
+    <div class="ig-post">
+      <div class="ig-post-header">
+        <div class="ig-post-avatar">${p.avatar}</div>
+        <div class="ig-post-user">${p.user}</div>
+        <span style="cursor:pointer">⋯</span>
+      </div>
+      <div class="ig-post-image" style="background:${p.img};position:relative" ondblclick="igLike(${i},event)">
+      </div>
+      <div class="ig-post-actions">
+        <span class="ig-action ${p.liked?'liked':''}" onclick="igToggleLike(${i})" id="ig-heart-${i}">${p.liked?'❤️':'🤍'}</span>
+        <span class="ig-action">💬</span>
+        <span class="ig-action">📤</span>
+        <span class="ig-action" style="margin-left:auto">🔖</span>
+      </div>
+      <div class="ig-likes">${(p.likes + (p.liked?1:0)).toLocaleString()} likes</div>
+      <div class="ig-caption"><b>${p.user}</b> ${p.caption}</div>
+    </div>
+  `).join('');
+}
+
+function igToggleLike(i) {
+  playClick();
+  IG_POSTS[i].liked = !IG_POSTS[i].liked;
+  renderIGFeed();
+}
+
+function igLike(i, event) {
+  if (!IG_POSTS[i].liked) {
+    IG_POSTS[i].liked = true;
+    // Show heart burst
+    const rect = event.currentTarget.getBoundingClientRect();
+    const heart = document.createElement('div');
+    heart.className = 'heart-burst';
+    heart.textContent = '❤️';
+    heart.style.left = (event.clientX - rect.left - 40) + 'px';
+    heart.style.top = (event.clientY - rect.top - 40) + 'px';
+    event.currentTarget.appendChild(heart);
+    setTimeout(() => heart.remove(), 800);
+    renderIGFeed();
+  }
+}
+
+// ---- CLOCK ----
+function getClockApp() {
+  return `
+    <div class="app-header" style="border:none">
+      <div class="app-back" onclick="closeCurrentApp()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="app-title">Clock</div>
+    </div>
+    <div class="clock-tabs">
+      <div class="clock-tab active">Clock</div>
+      <div class="clock-tab">Alarm</div>
+      <div class="clock-tab">Timer</div>
+      <div class="clock-tab">Stopwatch</div>
+    </div>
+    <div class="app-body">
+      <div class="clock-display">
+        <div class="clock-analog">
+          <div class="clock-hand hour"></div>
+          <div class="clock-hand minute"></div>
+          <div class="clock-hand second"></div>
+          <div class="clock-center-dot"></div>
+        </div>
+        <div class="clock-digital" id="clock-digital">12:00<span class="clock-digital-secs">:00</span></div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- WEATHER ----
+function getWeatherApp() {
+  const hours = ['Now','1PM','2PM','3PM','4PM','5PM','6PM','7PM'];
+  const hIcons = ['☀️','⛅','☁️','🌤️','☀️','🌥️','🌙','🌙'];
+  const hTemps = ['24°','23°','22°','23°','24°','22°','20°','19°'];
+  return appHeader('Weather') + `
+    <div class="app-body" style="background:var(--bg-primary)">
+      <div class="weather-main">
+        <div class="weather-city">San Francisco</div>
+        <div class="weather-icon">☀️</div>
+        <div class="weather-temp-big">24°</div>
+        <div class="weather-desc">Sunny</div>
+        <div class="weather-details">
+          <div class="weather-detail"><div class="weather-detail-val">62%</div><div class="weather-detail-label">Humidity</div></div>
+          <div class="weather-detail"><div class="weather-detail-val">12 km/h</div><div class="weather-detail-label">Wind</div></div>
+          <div class="weather-detail"><div class="weather-detail-val">UV 5</div><div class="weather-detail-label">UV Index</div></div>
+        </div>
+      </div>
+      <div style="padding:16px 16px 4px;font-size:13px;font-weight:700;color:var(--text-secondary)">Hourly Forecast</div>
+      <div class="weather-hourly">
+        ${hours.map((h, i) => `
+          <div class="weather-hour">
+            <div class="wh-time">${h}</div>
+            <div class="wh-icon">${hIcons[i]}</div>
+            <div class="wh-temp">${hTemps[i]}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ---- NOTES ----
+function getNotesApp() {
+  return appHeader('Notes') + `
+    <div class="app-body" id="notes-body" style="position:relative"></div>
+    <button class="note-fab" onclick="createNote()">+</button>
+  `;
+}
+
+function renderNotesBody() {
+  const body = document.getElementById('notes-body');
+  if (!body) return;
+  if (STATE.notes.length === 0) {
+    body.innerHTML = `
+      <div class="fm-empty">
+        <div class="fm-empty-icon">📝</div>
+        <p>No notes yet</p>
+        <p style="font-size:12px;margin-top:8px">Tap + to create a note</p>
+      </div>
+    `;
+    return;
+  }
+  body.innerHTML = `
+    <div class="notes-list">
+      ${STATE.notes.map((n, i) => `
+        <div class="note-card" onclick="editNote(${i})">
+          <div class="note-card-title">${n.title || 'Untitled'}</div>
+          <div class="note-card-preview">${n.content || 'Empty note'}</div>
+          <div class="note-card-date">${n.date}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function createNote() {
+  const note = {
+    title: '',
+    content: '',
+    date: new Date().toLocaleDateString()
+  };
+  STATE.notes.unshift(note);
+  saveState();
+  editNote(0);
+}
+
+function editNote(index) {
+  const note = STATE.notes[index];
+  const body = document.getElementById('notes-body');
+  body.innerHTML = `
+    <input class="note-title-input" placeholder="Title" value="${note.title}" 
+      oninput="STATE.notes[${index}].title=this.value;saveState()">
+    <div class="note-editor">
+      <textarea placeholder="Start typing..." oninput="STATE.notes[${index}].content=this.value;saveState()">${note.content}</textarea>
+    </div>
+  `;
+  // Hide FAB
+  const fab = body.parentElement.querySelector('.note-fab');
+  if (fab) fab.style.display = 'none';
+}
+
+// ---- MUSIC ----
+function getMusicApp() {
+  return appHeader('Music') + `
+    <div class="app-body" id="music-body"></div>
+  `;
+}
+
+function updateMusicUI() {
+  const body = document.getElementById('music-body');
+  if (!body) return;
+  const track = MUSIC_TRACKS[STATE.musicIndex];
+  body.innerHTML = `
+    <div class="music-player">
+      <div class="music-art ${STATE.musicPlaying ? 'playing' : ''}" style="background:linear-gradient(135deg,${track.color},${track.color}88)">
+        🎵
+      </div>
+      <div class="music-title">${track.title}</div>
+      <div class="music-artist">${track.artist}</div>
+      <div class="music-progress">
+        <div class="music-bar" onclick="musicSeek(event)">
+          <div class="music-bar-fill" id="music-bar-fill" style="width:${STATE.musicProgress}%"></div>
+        </div>
+        <div class="music-times">
+          <span>${formatMusicTime(STATE.musicProgress, track.dur)}</span>
+          <span>${track.dur}</span>
+        </div>
+      </div>
+      <div class="music-controls">
+        <div class="mc-btn" onclick="musicPrev()">⏮</div>
+        <div class="mc-btn mc-play" onclick="toggleMusic()">${STATE.musicPlaying ? '⏸' : '▶'}</div>
+        <div class="mc-btn" onclick="musicNext()">⏭</div>
+      </div>
+    </div>
+    <div style="padding:8px 16px;font-size:13px;font-weight:700;color:var(--text-secondary)">Up Next</div>
+    <div class="music-list">
+      ${MUSIC_TRACKS.map((t, i) => `
+        <div class="music-item ${i === STATE.musicIndex ? 'playing-now' : ''}" onclick="playTrack(${i})">
+          <div class="mi-art" style="background:${t.color}">${i === STATE.musicIndex && STATE.musicPlaying ? '🔊' : '🎵'}</div>
+          <div class="mi-info">
+            <div class="mi-title">${t.title}</div>
+            <div class="mi-artist">${t.artist}</div>
+          </div>
+          <div class="mi-dur">${t.dur}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+let musicInterval;
+function toggleMusic() {
+  playClick();
+  STATE.musicPlaying = !STATE.musicPlaying;
+  if (STATE.musicPlaying) {
+    musicInterval = setInterval(() => {
+      STATE.musicProgress = Math.min(100, STATE.musicProgress + 0.5);
+      const fill = document.getElementById('music-bar-fill');
+      if (fill) fill.style.width = STATE.musicProgress + '%';
+      if (STATE.musicProgress >= 100) { musicNext(); }
+    }, 500);
+  } else {
+    clearInterval(musicInterval);
+  }
+  updateMusicUI();
+}
+
+function musicNext() {
+  STATE.musicIndex = (STATE.musicIndex + 1) % MUSIC_TRACKS.length;
+  STATE.musicProgress = 0;
+  updateMusicUI();
+}
+
+function musicPrev() {
+  STATE.musicIndex = (STATE.musicIndex - 1 + MUSIC_TRACKS.length) % MUSIC_TRACKS.length;
+  STATE.musicProgress = 0;
+  updateMusicUI();
+}
+
+function playTrack(i) {
+  STATE.musicIndex = i;
+  STATE.musicProgress = 0;
+  if (!STATE.musicPlaying) toggleMusic();
+  else updateMusicUI();
+}
+
+function musicSeek(event) {
+  const bar = event.currentTarget;
+  const rect = bar.getBoundingClientRect();
+  const pct = ((event.clientX - rect.left) / rect.width) * 100;
+  STATE.musicProgress = Math.max(0, Math.min(100, pct));
+  const fill = document.getElementById('music-bar-fill');
+  if (fill) fill.style.width = STATE.musicProgress + '%';
+}
+
+function formatMusicTime(pct, durStr) {
+  const parts = durStr.split(':').map(Number);
+  let totalSec = parts[0] * 60 + (parts[1] || 0);
+  let currentSec = Math.floor(totalSec * pct / 100);
+  const m = Math.floor(currentSec / 60);
+  const s = currentSec % 60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+// ---- PHONE ----
+function getPhoneApp() {
+  const letters = ['','ABC','DEF','GHI','JKL','MNO','PQRS','TUV','WXYZ'];
+  const nums = ['1','2','3','4','5','6','7','8','9'];
+  return `
+    <div class="app-header" style="border:none">
+      <div class="app-back" onclick="closeCurrentApp()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="app-title">Phone</div>
+    </div>
+    <div class="app-body">
+      <div class="dialer-display">
+        <div class="dialer-number" id="dialer-number"></div>
+      </div>
+      <div class="dialer-grid">
+        ${nums.map((n, i) => `
+          <div class="dialer-btn" onclick="dialerInput('${n}')">
+            <div class="db-num">${n}</div>
+            <div class="db-letters">${letters[i]}</div>
+          </div>
+        `).join('')}
+        <div class="dialer-btn" onclick="dialerInput('*')"><div class="db-num">✱</div></div>
+        <div class="dialer-btn" onclick="dialerInput('0')"><div class="db-num">0</div><div class="db-letters">+</div></div>
+        <div class="dialer-btn" onclick="dialerInput('#')"><div class="db-num">#</div></div>
+      </div>
+      <div class="dialer-call" onclick="dialerCall()">📞</div>
+      <div class="dialer-actions">
+        <div class="dialer-action" onclick="dialerBackspace()">⌫</div>
+      </div>
+    </div>
+  `;
+}
+
+function dialerInput(num) {
+  playClick();
+  STATE.dialerNumber += num;
+  document.getElementById('dialer-number').textContent = formatPhone(STATE.dialerNumber);
+}
+function dialerBackspace() {
+  STATE.dialerNumber = STATE.dialerNumber.slice(0, -1);
+  document.getElementById('dialer-number').textContent = formatPhone(STATE.dialerNumber);
+}
+function dialerCall() {
+  playClick();
+  if (STATE.dialerNumber.length > 0) {
+    alert('📞 Calling ' + formatPhone(STATE.dialerNumber) + '...\n(Simulated)');
+  }
+}
+function formatPhone(num) {
+  if (num.length <= 3) return num;
+  if (num.length <= 6) return `(${num.slice(0,3)}) ${num.slice(3)}`;
+  return `(${num.slice(0,3)}) ${num.slice(3,6)}-${num.slice(6,10)}`;
+}
+
+// ---- GENERIC APP ----
+function getGenericApp(app) {
+  return appHeader(app.name) + `
+    <div class="app-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px">
+      <div style="font-size:64px;margin-bottom:20px">${app.icon}</div>
+      <div style="font-size:20px;font-weight:600;color:var(--text-primary);margin-bottom:8px">${app.name}</div>
+      <div style="font-size:14px;color:var(--text-muted);line-height:1.6">This app is a placeholder.<br>The interface is simulated.</div>
+    </div>
+  `;
+}
+
+// ============================================
+// OPEN APP HOOKS
+// ============================================
+const _origOpenApp = openApp;
+// We need to hook into openApp to render dynamic content
+const origOpenAppRef = openApp;
+const _openApp = openApp;
+// Overwrite with hook
+window.openApp = function(id) {
+  _openApp(id);
+  // Render dynamic content after opening
+  setTimeout(() => {
+    if (id === 'files') renderFilesBody();
+    if (id === 'instagram') renderIGFeed();
+    if (id === 'notes') renderNotesBody();
+    if (id === 'phone') STATE.dialerNumber = '';
+  }, 50);
+};
+
+// ============================================
+// SOUND EFFECTS
+// ============================================
+function playClick() {
+  if (!STATE.soundOn) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 1200;
+    osc.type = 'sine';
+    gain.gain.value = 0.03;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  } catch(e) {}
+}
+
+// ============================================
+// INITIAL RENDER COMPLETE
+// ============================================
+</script>
+</body>
+</html>
